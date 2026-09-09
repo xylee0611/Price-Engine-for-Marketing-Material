@@ -1,0 +1,7 @@
+services:
+  price-engine:
+    build: .
+    container_name: price-engine-marketing-material
+    restart: unless-stopped
+    ports:
+      - "8501:8501"

@@ -19,6 +19,14 @@ streamlit run app.py
 
 Then open the local URL Streamlit prints (default `http://localhost:8501`).
 
+## Deploy with Docker
+
+```bash
+docker compose up -d --build
+```
+
+This builds the image from the included `Dockerfile` and runs it on port 8501, restarting automatically if the host reboots. To deploy on a server managed through a panel like **aaPanel**: open the **Docker** section, create a Compose project pointing at this repo (or upload `docker-compose.yml`), and deploy — no manual `pip install` needed, the container has everything it requires. Point a reverse-proxy site at `http://127.0.0.1:8501` if you want a clean domain/HTTPS in front of it.
+
 ## Files
 
 | File | Purpose |
