@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+streamlit.log
+.streamlit/secrets.toml
+*.log
+.DS_Store
+Thumbs.db
+_test_output.*
+_test_preview_*.png
