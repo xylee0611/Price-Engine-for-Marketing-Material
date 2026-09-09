@@ -1,8 +1,12 @@
 """Price list loading and tier/currency computation.
 
 Column lookup is by header text (row 1), not fixed column letters, so the
-engine keeps working if the price list's column order shifts.
+engine keeps working if a price list's column order shifts or gains extra
+columns. Multiple price list files (xlsx and/or csv) can be loaded together
+and are merged by SKU Code, so a tier's source column can live in whichever
+file actually has it.
 """
+import csv
 import math
 import re
 
@@ -20,6 +24,10 @@ DIRECT_TIER_HEADERS = {
     "RLP SGD": "RLP (SGD)",
     "RRP RMB": "RRP (RMB)",
     "RLP RMB": "RLP (RMB)",
+    # From the supplementary "SKU Retail Recommended Price" list — confirmed
+    # by the user to be USD-denominated (header text itself doesn't say).
+    "LBL USD": "Loosing Line",
+    "HBL USD": "Manager Price",
 }
 
 # Calculated tiers: display name -> (base header, cumulative -5% steps).
@@ -51,7 +59,10 @@ CURRENCY_IN_HEADER_RE = re.compile(r"\(([A-Z]{2,4})\)")
 
 # Display ordering for the tier dropdown: grouped by currency, then by tier rank.
 CURRENCY_ORDER = ["USD", "MYR", "SGD", "RMB"]
-TIER_RANK = {"RRP": 0, "RLP": 1, "R1": 2, "R2": 3, "R3": 4, "R4": 5, "R5": 6, "R6": 7}
+TIER_RANK = {
+    "RRP": 0, "RLP": 1, "R1": 2, "R2": 3, "R3": 4, "R4": 5, "R5": 6, "R6": 7,
+    "LBL": 8, "HBL": 9,
+}
 
 
 def _tier_sort_key(tier_name):
@@ -64,19 +75,70 @@ def round_up_half(x):
     return math.ceil(round(x * 2, 6)) / 2
 
 
+def round_nearest_half(x):
+    return round(round(x * 2, 6)) / 2
+
+
+def round_up_int(x):
+    return float(math.ceil(round(x, 6)))
+
+
 def round_price(x, mode):
     if mode == "up_half":
         return round_up_half(x)
+    if mode == "nearest_half":
+        return round_nearest_half(x)
+    if mode == "up_int":
+        return round_up_int(x)
     if mode == "nearest_int":
         return float(round(x))
     return x  # "none"
 
 
+def _display_name(path):
+    """Filename for a plain path string or a Streamlit UploadedFile-like object."""
+    name = getattr(path, "name", None)
+    return name if name else str(path)
+
+
 class PriceList:
-    def __init__(self, path):
+    """Loads one or more price list files (xlsx and/or csv) and merges them
+    by SKU Code, so a tier's source column can come from whichever file
+    actually has it — e.g. a supplementary CSV adding LBL/HBL columns for
+    the same SKUs as the main workbook."""
+
+    def __init__(self, paths):
+        if isinstance(paths, (str, bytes)) or hasattr(paths, "read"):
+            paths = [paths]
+
+        self.by_sku = {}
+        self.combine_to_sku = {}
+        self.available_headers = set()
+        self.sources = []
+
+        for path in paths:
+            headers, rows = self._load_file(path)
+            self.available_headers |= set(headers)
+            self.sources.append(_display_name(path))
+            for sku, combine, fields in rows:
+                if sku in self.by_sku:
+                    self.by_sku[sku].update(fields)
+                else:
+                    self.by_sku[sku] = dict(fields)
+                if combine:
+                    self.combine_to_sku.setdefault(combine, sku)
+
+        self.row_count = len(self.by_sku)
+
+    def _load_file(self, path):
+        name = _display_name(path).lower()
+        if name.endswith(".csv"):
+            return self._load_csv(path)
+        return self._load_xlsx(path)
+
+    def _load_xlsx(self, path):
         wb = openpyxl.load_workbook(path, data_only=True)
-        self.sheet_name = wb.sheetnames[0]
-        ws = wb[self.sheet_name]
+        ws = wb[wb.sheetnames[0]]
 
         headers = {}
         for col in range(1, ws.max_column + 1):
@@ -90,27 +152,48 @@ class PriceList:
             None,
         )
         if sku_col is None:
-            raise ValueError(
-                f'Could not find a "{SKU_CODE_HEADER}" column in row 1 of {path}'
-            )
+            raise ValueError(f'Could not find a "{SKU_CODE_HEADER}" column in row 1 of {_display_name(path)}')
 
-        self.by_sku = {}
-        self.by_combine = {}
+        rows = []
         for row in range(2, ws.max_row + 1):
             sku_val = ws.cell(row=row, column=sku_col).value
             sku = str(sku_val).strip() if sku_val is not None else ""
             if not sku:
                 continue
-            record = {h: ws.cell(row=row, column=c).value for h, c in headers.items()}
-            self.by_sku[sku] = record
+            fields = {h: ws.cell(row=row, column=c).value for h, c in headers.items()}
+            combine = None
             if combine_col is not None:
                 combine_val = ws.cell(row=row, column=combine_col).value
                 combine = str(combine_val).strip() if combine_val is not None else ""
-                if combine:
-                    self.by_combine[combine] = record
+            rows.append((sku, combine, fields))
+        return list(headers.keys()), rows
 
-        self.available_headers = set(headers.keys())
-        self.row_count = len(self.by_sku)
+    def _load_csv(self, path):
+        if hasattr(path, "read"):
+            path.seek(0)
+            text = path.read()
+            if isinstance(text, bytes):
+                text = text.decode("utf-8-sig")
+            lines = text.splitlines()
+        else:
+            with open(path, encoding="utf-8-sig") as f:
+                lines = f.read().splitlines()
+
+        reader = csv.DictReader(lines)
+        headers = [h.strip() for h in (reader.fieldnames or [])]
+        if SKU_CODE_HEADER not in headers:
+            raise ValueError(f'Could not find a "{SKU_CODE_HEADER}" column in the header row of {_display_name(path)}')
+        combine_header = next((h for h in headers if h.startswith(COMBINE_SKU_HEADER_PREFIX)), None)
+
+        rows = []
+        for raw_row in reader:
+            fields = {h.strip(): v for h, v in raw_row.items() if h}
+            sku = str(fields.get(SKU_CODE_HEADER, "")).strip()
+            if not sku:
+                continue
+            combine = str(fields.get(combine_header, "")).strip() if combine_header else None
+            rows.append((sku, combine, fields))
+        return headers, rows
 
     def lookup(self, sku_text):
         """Return the price-list record for a SKU, checking SKU Code then
@@ -118,9 +201,9 @@ class PriceList:
         record = self.by_sku.get(sku_text)
         if record is not None:
             return record, "sku_code"
-        record = self.by_combine.get(sku_text)
-        if record is not None:
-            return record, "combine_code"
+        sku = self.combine_to_sku.get(sku_text)
+        if sku is not None:
+            return self.by_sku.get(sku), "combine_code"
         return None, None
 
     def available_tiers(self):

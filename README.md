@@ -1,13 +1,14 @@
 # Price Engine for Marketing Material
 
-A Streamlit app that applies price-list prices onto SKU marketing decks (PDF and/or PPTX). Upload a price list and a deck, pick a pricing tier/currency, review every matched SKU and its computed price, then download the priced PDF/PPTX with the price stamped next to each SKU code.
+A Streamlit app that applies price-list prices onto SKU marketing decks (PDF and/or PPTX). Upload one or more price lists and a deck, pick a pricing tier/currency, review every matched SKU and its computed price, then download the priced PDF/PPTX with the price stamped next to each SKU code.
 
 ## How it works
 
-- **SKU detection** cross-references every plausible text token found in the deck against the price list's SKU Code / Combine SKU Code columns — layout-independent, no hardcoded SKU list. When both a PPTX and PDF are provided, the PPTX (almost always real text) drives detection, and the PDF's own text is preferred for placement precision.
-- **Pricing** supports direct price-list columns (RRP/RLP per currency, P1–P3 MYR), documented cascading-discount tiers (R1–R6 USD, R4–R6 MYR), and a **Custom tier** for anything else — either a cascading discount (base column × (1−%)ⁿ) or a direct markup multiplier (e.g. RRP × 1.2) — always user-specified, never guessed.
+- **Price list loading** supports both `.xlsx` and `.csv`, and more than one file at once — useful when a tier's column lives in a separate supplementary list (e.g. a "SKU Retail Recommended Price" CSV holding LBL/HBL columns not present in the main workbook). Files are merged by SKU Code, and every column is matched **by header text, never a fixed column letter/position** — safe against column reordering or extra columns some users' copies may have.
+- **SKU detection** cross-references every plausible text token found in the deck against the merged price list's SKU Code / Combine SKU Code columns — layout-independent, no hardcoded SKU list. When both a PPTX and PDF are provided, the PPTX (almost always real text) drives detection, and the PDF's own text is preferred for placement precision.
+- **Pricing** supports direct price-list columns (RRP/RLP per currency, P1–P3 MYR, LBL/HBL USD), documented cascading-discount tiers (R1–R6 USD, R4–R6 MYR), and a **Custom tier** for anything else — either a cascading discount (base column × (1−%)ⁿ) or a direct markup multiplier (e.g. RRP × 1.2) — always user-specified, never guessed.
 - **Placement** is collision-aware: it tries a clear spot to the right, then below, then left of each SKU code, and skips (flagging for manual review) rather than stamping a price over a photo or other text.
-- Every final price rounds up to the nearest 0.5 by default (configurable per run).
+- Rounding is configurable per run: round up to nearest 0.5 (default), round to nearest 0.5, round up to nearest whole number, round to nearest whole number, or no rounding.
 
 ## Run it
 

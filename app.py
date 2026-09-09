@@ -29,6 +29,8 @@ st.caption(
 
 ROUNDING_OPTIONS = {
     "Round up to nearest 0.5": "up_half",
+    "Round to nearest 0.5": "nearest_half",
+    "Round up to nearest whole number": "up_int",
     "Round to nearest whole number": "nearest_int",
     "No rounding": "none",
 }
@@ -52,14 +54,18 @@ session_dir = get_session_dir()
 st.header("1. Input files")
 col1, col2, col3 = st.columns(3)
 with col1:
-    price_list_file = st.file_uploader("Price list (.xlsx)", type=["xlsx"])
+    price_list_files = st.file_uploader(
+        "Price list file(s) (.xlsx / .csv)", type=["xlsx", "csv"], accept_multiple_files=True
+    )
+    st.caption("Upload more than one if a tier's column lives in a separate supplementary list — "
+               "they're merged together by SKU Code.")
 with col2:
     pptx_file = st.file_uploader("Material PPTX (optional)", type=["pptx"])
 with col3:
     pdf_file = st.file_uploader("Material PDF (optional)", type=["pdf"])
 
-if not price_list_file:
-    st.info("Upload a price list to continue.")
+if not price_list_files:
+    st.info("Upload at least one price list to continue.")
     st.stop()
 
 if not pptx_file and not pdf_file:
@@ -67,14 +73,18 @@ if not pptx_file and not pdf_file:
                "it's more robust to unusual layouts and lets us produce both deliverables.")
     st.stop()
 
-price_list_path = save_upload(price_list_file, session_dir)
+price_list_paths = [save_upload(f, session_dir) for f in price_list_files]
+price_list_names = [f.name for f in price_list_files]
 try:
-    price_list = PriceList(price_list_path)
+    price_list = PriceList(price_list_paths)
 except ValueError as e:
     st.error(str(e))
     st.stop()
 
-st.success(f"Loaded **{price_list_file.name}** — {price_list.row_count} SKUs found on sheet \"{price_list.sheet_name}\".")
+st.success(
+    f"Loaded {', '.join(f'`{n}`' for n in price_list_names)} — {price_list.row_count} unique SKUs across "
+    f"{len(price_list_names)} file(s)."
+)
 
 pptx_path = save_upload(pptx_file, session_dir) if pptx_file else None
 pdf_path = save_upload(pdf_file, session_dir) if pdf_file else None
