@@ -27,15 +27,15 @@ docker compose up -d --build
 
 This builds the image from the included `Dockerfile` and runs it on port 8501, restarting automatically if the host reboots. To deploy on a server managed through a panel like **aaPanel**: open the **Docker** section, create a Compose project pointing at this repo (or upload `docker-compose.yml`), and deploy — no manual `pip install` needed, the container has everything it requires.
 
-### Serving under a URL subpath (e.g. `10.2.1.19/price-engine.hinlim`)
+### Serving under a URL subpath (e.g. `10.2.1.19/price-engine-marketing-material`)
 
-`docker-compose.yml` sets `STREAMLIT_SERVER_BASE_URL_PATH` so the app expects to be served from that subpath rather than the domain root — change that value if you use a different path, or remove the variable entirely to serve from root. Verified locally: with the variable set, the app responds on `/price-engine.hinlim/` (200) and 404s on `/` as expected.
+`docker-compose.yml` sets `STREAMLIT_SERVER_BASE_URL_PATH` so the app expects to be served from that subpath rather than the domain root — change that value if you use a different path, or remove the variable entirely to serve from root. Verified locally: with the variable set, the app responds on `/price-engine-marketing-material/` (200) and 404s on `/` as expected.
 
 The reverse proxy in front of it (e.g. an aaPanel Website configured as a reverse proxy) must **preserve the path** (not strip it before forwarding) and support **WebSocket upgrade** (Streamlit keeps a persistent WS connection for live updates) — a plain proxy without these two will show a blank page or one that never updates. If aaPanel's reverse-proxy UI doesn't give you this control, add a custom Nginx location block for the site instead:
 
 ```nginx
-location /price-engine.hinlim/ {
-    proxy_pass http://127.0.0.1:8501/price-engine.hinlim/;
+location /price-engine-marketing-material/ {
+    proxy_pass http://127.0.0.1:8501/price-engine-marketing-material/;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";

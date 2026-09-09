@@ -7,6 +7,6 @@ services:
       - "8501:8501"
     environment:
       # Set to match the path segment your reverse proxy serves this under
-      # (e.g. "price-engine.hinlim" for 10.2.1.19/price-engine.hinlim).
+      # (e.g. "price-engine-marketing-material" for 10.2.1.19/price-engine-marketing-material).
       # Leave unset/empty to serve from the root path instead.
-      - STREAMLIT_SERVER_BASE_URL_PATH=price-engine.hinlim
+      - STREAMLIT_SERVER_BASE_URL_PATH=price-engine-marketing-material
