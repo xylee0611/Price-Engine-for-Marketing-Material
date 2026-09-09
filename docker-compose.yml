@@ -5,3 +5,8 @@ services:
     restart: unless-stopped
     ports:
       - "8501:8501"
+    environment:
+      # Set to match the path segment your reverse proxy serves this under
+      # (e.g. "price-engine.hinlim" for 10.2.1.19/price-engine.hinlim).
+      # Leave unset/empty to serve from the root path instead.
+      - STREAMLIT_SERVER_BASE_URL_PATH=price-engine.hinlim
